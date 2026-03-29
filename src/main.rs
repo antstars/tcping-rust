@@ -5,8 +5,9 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 use std::time::{Duration, Instant};
 
+// 为什么：显式指定 name = "tcping"，覆盖 Cargo.toml 中的包名，使终端执行 -V 时输出的版本信息更纯粹。
 #[derive(Parser, Debug)]
-#[command(author, version, about, long_about = None)]
+#[command(name = "tcping", author, version, about = "A lightweight TCP ping tool", long_about = None)]
 struct PingConfig {
     host: String,
     port: u16,
@@ -23,19 +24,19 @@ struct SessionStatistics {
     transmitted: u32,
     successful: u32,
     unsuccessful: u32,
-    
+
     start_time: Option<DateTime<Local>>,
     end_time: Option<DateTime<Local>>,
     last_successful_time: Option<DateTime<Local>>,
     last_unsuccessful_time: Option<DateTime<Local>>,
-    
+
     current_uptime_start: Option<DateTime<Local>>,
     longest_uptime_start: Option<DateTime<Local>>,
     longest_uptime_end: Option<DateTime<Local>>,
     longest_uptime_duration: Duration,
-    
+
     total_uptime: Duration,
-    
+
     rtt_min: Option<f64>,
     rtt_max: Option<f64>,
     rtt_sum: f64,
@@ -65,7 +66,7 @@ impl SessionStatistics {
         }
     }
 
-    // 独立处理失败逻辑，避免与成功逻辑耦合，确保状态流转清晰
+    // 为什么：独立处理失败逻辑，避免与成功逻辑耦合，确保连通性状态流转清晰，符合单一职责原则。
     fn record_failure(&mut self, timestamp: DateTime<Local>) {
         self.transmitted += 1;
         self.unsuccessful += 1;
@@ -93,10 +94,11 @@ fn main() {
     let running = Arc::new(AtomicBool::new(true));
     let r = running.clone();
 
-    // 劫持 SIGINT，接管生命周期控制权以保证即使强制中断也能输出完整统计报告
+    // 为什么：接管生命周期控制权，保证即使遇到强制中断信号（如 Ctrl+C），也能优雅跳出循环并输出完整的统计报告。
     ctrlc::set_handler(move || {
         r.store(false, Ordering::SeqCst);
-    }).expect("Error setting Ctrl-C handler");
+    })
+    .expect("Error setting Ctrl-C handler");
 
     execute_tcp_ping(&config, running);
 }
@@ -104,7 +106,8 @@ fn main() {
 fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
     let address = format!("{}:{}", config.host, config.port);
     let target_addr = match address.to_socket_addrs().and_then(|mut iter| {
-        iter.next().ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No IP found"))
+        iter.next()
+            .ok_or_else(|| std::io::Error::new(std::io::ErrorKind::NotFound, "No IP found"))
     }) {
         Ok(addr) => addr,
         Err(_) => {
@@ -117,7 +120,7 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
 
     let mut stats = SessionStatistics::default();
     stats.record_start();
-    
+
     let timeout = Duration::from_millis(config.timeout_ms);
     let interval = Duration::from_secs(1);
     let mut sequence = 1;
@@ -126,11 +129,11 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
         let loop_start = Instant::now();
         let ping_timestamp = Local::now();
 
-    let (tx, rx) = std::sync::mpsc::channel();
+        let (tx, rx) = std::sync::mpsc::channel();
         let target = target_addr;
         let t = timeout;
 
-        // 为什么：将底层的阻塞式系统调用交给独立线程执行，同时在子线程内完成精确计时，防止主线程的轮询机制干扰 RTT 精度。
+        // 为什么：将底层的阻塞式系统调用交给独立线程执行，同时在子线程内完成精确计时，防止主线程的高频轮询机制干扰 RTT 的精度计算。
         std::thread::spawn(move || {
             let conn_start = Instant::now();
             match TcpStream::connect_timeout(&target, t) {
@@ -144,11 +147,11 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
         });
 
         let mut latency_res = None;
-        
-        // 主线程保持极度轻量，仅负责 10 毫秒级的高频状态轮询
+
+        // 为什么：主线程保持极度轻量，仅负责 10 毫秒级的高频状态轮询，实现对 Ctrl+C 的毫秒级响应，彻底消除等待底层的卡顿感。
         loop {
             if !running.load(Ordering::SeqCst) {
-                break; // 瞬间响应 Ctrl+C
+                break;
             }
             match rx.try_recv() {
                 Ok(res) => {
@@ -165,7 +168,7 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
         }
 
         if !running.load(Ordering::SeqCst) {
-            break; // 如果在等待期间按下了 Ctrl+C，直接跳出当前 Ping 循环，打印最终报表
+            break;
         }
 
         match latency_res {
@@ -173,17 +176,27 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
                 stats.record_success(latency_ms, ping_timestamp);
                 println!(
                     "Reply from {} ({}) on port {} TCP_conn={} time={:.3} ms",
-                    config.host, target_addr.ip(), config.port, sequence, latency_ms
+                    config.host,
+                    target_addr.ip(),
+                    config.port,
+                    sequence,
+                    latency_ms
                 );
             }
             _ => {
                 stats.record_failure(ping_timestamp);
-                println!("No response from {} ({}) on port {} TCP_conn={}", config.host, target_addr.ip(), config.port, sequence);
+                println!(
+                    "No response from {} ({}) on port {} TCP_conn={}",
+                    config.host,
+                    target_addr.ip(),
+                    config.port,
+                    sequence
+                );
             }
         }
 
         sequence += 1;
-        
+
         let elapsed = loop_start.elapsed();
         if elapsed < interval {
             let sleep_duration = interval - elapsed;
@@ -212,29 +225,55 @@ fn print_statistics(config: &PingConfig, stats: &SessionStatistics) {
     let start = stats.start_time.unwrap();
     let end = stats.end_time.unwrap();
     let duration = end - start;
-    
-    // 采用与常规工具一致的停机时间估算：总持续时间减去连通时间
-    let total_downtime = duration.to_std().unwrap_or(Duration::ZERO).saturating_sub(stats.total_uptime);
 
-    let format_time = |t: Option<DateTime<Local>>| t.map_or("Never".to_string(), |t| t.format("%Y-%m-%d %H:%M:%S").to_string());
-    let format_time_failed = |t: Option<DateTime<Local>>| t.map_or("Never failed".to_string(), |t| t.format("%Y-%m-%d %H:%M:%S").to_string());
+    let total_downtime = duration
+        .to_std()
+        .unwrap_or(Duration::ZERO)
+        .saturating_sub(stats.total_uptime);
+
+    let format_time = |t: Option<DateTime<Local>>| {
+        t.map_or("Never".to_string(), |t| {
+            t.format("%Y-%m-%d %H:%M:%S").to_string()
+        })
+    };
+    let format_time_failed = |t: Option<DateTime<Local>>| {
+        t.map_or("Never failed".to_string(), |t| {
+            t.format("%Y-%m-%d %H:%M:%S").to_string()
+        })
+    };
 
     println!("\n--- {} TCPing statistics ---", config.host);
-    println!("{} probes transmitted on port {} | {} received, {:.2}% packet loss", stats.transmitted, config.port, stats.successful, loss_rate);
+    println!(
+        "{} probes transmitted on port {} | {} received, {:.2}% packet loss",
+        stats.transmitted, config.port, stats.successful, loss_rate
+    );
     println!("successful probes:   {}", stats.successful);
     println!("unsuccessful probes: {}", stats.unsuccessful);
-    println!("last successful probe:   {}", format_time(stats.last_successful_time));
-    println!("last unsuccessful probe: {}", format_time_failed(stats.last_unsuccessful_time));
-// 为什么：将毫秒转换为 f64 进行 round (四舍五入)，防止 2.9 秒被直接截断显示为 2 秒，以保证报表时间轴符合人类直观感受。
+    println!(
+        "last successful probe:   {}",
+        format_time(stats.last_successful_time)
+    );
+    println!(
+        "last unsuccessful probe: {}",
+        format_time_failed(stats.last_unsuccessful_time)
+    );
+
+    // 为什么：将毫秒转换为 f64 进行 round (四舍五入)，防止 2.9 秒被直接向下截断显示为 2 秒，保证报表时间轴符合人类直观感受。
     let uptime_secs = (stats.total_uptime.as_millis() as f64 / 1000.0).round() as u64;
     let downtime_secs = (total_downtime.as_millis() as f64 / 1000.0).round() as u64;
 
     println!("total uptime:   {} seconds", uptime_secs);
-    println!("total downtime: {} second{}", downtime_secs, if downtime_secs != 1 { "s" } else { "" });
-    
+    println!(
+        "total downtime: {} second{}",
+        downtime_secs,
+        if downtime_secs != 1 { "s" } else { "" }
+    );
+
     if let (Some(up_start), Some(up_end)) = (stats.longest_uptime_start, stats.longest_uptime_end) {
-        let longest_uptime_secs = (stats.longest_uptime_duration.as_millis() as f64 / 1000.0).round() as u64;
-        println!("longest consecutive uptime:   {} seconds from {} to {}", 
+        let longest_uptime_secs =
+            (stats.longest_uptime_duration.as_millis() as f64 / 1000.0).round() as u64;
+        println!(
+            "longest consecutive uptime:   {} seconds from {} to {}",
             longest_uptime_secs,
             up_start.format("%Y-%m-%d %H:%M:%S"),
             up_end.format("%Y-%m-%d %H:%M:%S")
@@ -245,16 +284,24 @@ fn print_statistics(config: &PingConfig, stats: &SessionStatistics) {
 
     if stats.successful > 0 {
         let avg = stats.rtt_sum / stats.successful as f64;
-        println!("rtt min/avg/max: {:.3}/{:.3}/{:.3} ms", stats.rtt_min.unwrap_or(0.0), avg, stats.rtt_max.unwrap_or(0.0));
+        println!(
+            "rtt min/avg/max: {:.3}/{:.3}/{:.3} ms",
+            stats.rtt_min.unwrap_or(0.0),
+            avg,
+            stats.rtt_max.unwrap_or(0.0)
+        );
     }
-    
+
     println!("--------------------------------------");
     println!("TCPing started at: {}", start.format("%Y-%m-%d %H:%M:%S"));
     println!("TCPing ended at:   {}", end.format("%Y-%m-%d %H:%M:%S"));
-    
+
     let total_duration_secs = (duration.num_milliseconds() as f64 / 1000.0).round() as i64;
     let hours = total_duration_secs / 3600;
     let minutes = (total_duration_secs % 3600) / 60;
     let seconds = total_duration_secs % 60;
-    println!("duration (HH:MM:SS): {:02}:{:02}:{:02}", hours, minutes, seconds);
+    println!(
+        "duration (HH:MM:SS): {:02}:{:02}:{:02}",
+        hours, minutes, seconds
+    );
 }
