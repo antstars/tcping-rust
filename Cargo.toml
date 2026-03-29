@@ -1,7 +1,14 @@
 [package]
-name = "tcping"
-version = "0.1.0"
+name = "tcping-rust"
+version = "0.1.0"         
 edition = "2021"
+description = "A lightweight, fast, and cross-platform TCP ping tool."
+license = "MIT"           
+repository = "https://github.com/antstars/tcping-rust"
+
+[[bin]]
+name = "tcping"
+path = "src/main.rs"
 
 [dependencies]
 clap = { version = "4.4", features = ["derive"] }
