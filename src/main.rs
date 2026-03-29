@@ -126,16 +126,57 @@ fn execute_tcp_ping(config: &PingConfig, running: Arc<AtomicBool>) {
         let loop_start = Instant::now();
         let ping_timestamp = Local::now();
 
-        match TcpStream::connect_timeout(&target_addr, timeout) {
-            Ok(_) => {
-                let latency_ms = loop_start.elapsed().as_secs_f64() * 1000.0;
+    let (tx, rx) = std::sync::mpsc::channel();
+        let target = target_addr;
+        let t = timeout;
+
+        // 为什么：将底层的阻塞式系统调用交给独立线程执行，同时在子线程内完成精确计时，防止主线程的轮询机制干扰 RTT 精度。
+        std::thread::spawn(move || {
+            let conn_start = Instant::now();
+            match TcpStream::connect_timeout(&target, t) {
+                Ok(_) => {
+                    let _ = tx.send(Ok(conn_start.elapsed().as_secs_f64() * 1000.0));
+                }
+                Err(_) => {
+                    let _ = tx.send(Err(()));
+                }
+            }
+        });
+
+        let mut latency_res = None;
+        
+        // 主线程保持极度轻量，仅负责 10 毫秒级的高频状态轮询
+        loop {
+            if !running.load(Ordering::SeqCst) {
+                break; // 瞬间响应 Ctrl+C
+            }
+            match rx.try_recv() {
+                Ok(res) => {
+                    latency_res = Some(res);
+                    break;
+                }
+                Err(std::sync::mpsc::TryRecvError::Empty) => {
+                    std::thread::sleep(Duration::from_millis(10));
+                }
+                Err(std::sync::mpsc::TryRecvError::Disconnected) => {
+                    break;
+                }
+            }
+        }
+
+        if !running.load(Ordering::SeqCst) {
+            break; // 如果在等待期间按下了 Ctrl+C，直接跳出当前 Ping 循环，打印最终报表
+        }
+
+        match latency_res {
+            Some(Ok(latency_ms)) => {
                 stats.record_success(latency_ms, ping_timestamp);
                 println!(
                     "Reply from {} ({}) on port {} TCP_conn={} time={:.3} ms",
                     config.host, target_addr.ip(), config.port, sequence, latency_ms
                 );
             }
-            Err(_) => {
+            _ => {
                 stats.record_failure(ping_timestamp);
                 println!("No response from {} ({}) on port {} TCP_conn={}", config.host, target_addr.ip(), config.port, sequence);
             }
