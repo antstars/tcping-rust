@@ -1,7 +1,4 @@
-
-
 # tcping-rust
-
 
 [🇨🇳 简体中文](#简体中文) | [🇬🇧 English](#english)
 
@@ -29,7 +26,7 @@ Go to the [Releases](https://github.com/antstars/tcping-rust/releases) page and 
 If you have the Rust toolchain installed, you can easily build it yourself:
 
 ```bash
-git clone [https://github.com/antstars/tcping-rust.git](https://github.com/antstars/tcping-rust.git)
+git clone https://github.com/antstars/tcping-rust.git
 cd tcping-rust
 cargo build --release
 ```
@@ -101,7 +98,7 @@ Use `tcping --help` to see all available options.
 **Bash**
 
 ```
-git clone [https://github.com/antstars/tcping-rust.git](https://github.com/antstars/tcping-rust.git)
+git clone https://github.com/antstars/tcping-rust.git
 cd tcping-rust
 cargo build --release
 ```
