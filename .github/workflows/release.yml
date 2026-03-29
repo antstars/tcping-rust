@@ -3,35 +3,54 @@ name: Release Build
 on:
   push:
     tags:
-      - 'v*' # 为什么：只在推送类似 v1.0.0 的版本标签时触发正式发布，避免普通提交浪费云端编译资源。
-  workflow_dispatch: # 为什么：保留手动触发入口，以便你在不发布新版本时也能随时打包测试二进制文件。
+      - 'v*'
+  workflow_dispatch:
 
 permissions:
-  contents: write # 为什么：赋予 GitHub Actions 写权限，使其能够自动将编译好的文件挂载到仓库的 Release 页面。
+  contents: write
 
 jobs:
   build:
     name: Build for ${{ matrix.target }}
     runs-on: ${{ matrix.os }}
     strategy:
-      fail-fast: false # 为什么：确保某个平台的编译偶发失败时，不会强制中断其他独立平台的编译进度。
+      fail-fast: false
       matrix:
         include:
+          # Linux 阵营 (使用 cross 解决底层 C 库依赖)
           - os: ubuntu-latest
             target: x86_64-unknown-linux-musl
-            artifact_name: tcping
+            use_cross: true
+            bin_name: tcping
             asset_name: tcping-linux-amd64
+          - os: ubuntu-latest
+            target: aarch64-unknown-linux-musl
+            use_cross: true
+            bin_name: tcping
+            asset_name: tcping-linux-arm64
+          
+          # Windows 阵营 (使用原生 cargo 即可支持交叉编译)
           - os: windows-latest
             target: x86_64-pc-windows-msvc
-            artifact_name: tcping.exe
+            use_cross: false
+            bin_name: tcping.exe
             asset_name: tcping-windows-amd64.exe
+          - os: windows-latest
+            target: aarch64-pc-windows-msvc
+            use_cross: false
+            bin_name: tcping.exe
+            asset_name: tcping-windows-arm64.exe
+          
+          # macOS 阵营 (使用原生 cargo 即可支持)
           - os: macos-latest
             target: x86_64-apple-darwin
-            artifact_name: tcping
+            use_cross: false
+            bin_name: tcping
             asset_name: tcping-macos-intel
           - os: macos-latest
             target: aarch64-apple-darwin
-            artifact_name: tcping
+            use_cross: false
+            bin_name: tcping
             asset_name: tcping-macos-arm64
 
     steps:
@@ -43,26 +62,29 @@ jobs:
         with:
           targets: ${{ matrix.target }}
 
-      - name: Install musl-tools (Linux only)
-        if: matrix.os == 'ubuntu-latest'
-        run: sudo apt-get update && sudo apt-get install -y musl-tools
+      # 为什么：taiki-e 的预编译包缓存可以直接秒级安装 cross，避免 cargo install 动辄几分钟的编译耗时。
+      - name: Install cross (Linux only)
+        if: matrix.use_cross == true
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cross
 
-      - name: Build target
+      - name: Build with cross
+        if: matrix.use_cross == true
+        run: cross build --release --target ${{ matrix.target }}
+
+      - name: Build with cargo
+        if: matrix.use_cross == false
         run: cargo build --release --target ${{ matrix.target }}
 
       - name: Rename artifact
         shell: bash
+        # 为什么：统一重命名输出文件，让下载页面的文件名具备完全的自解释性（平台 + 架构）。
         run: |
           cd target/${{ matrix.target }}/release
-          mv ${{ matrix.artifact_name }} ${{ matrix.asset_name }}
+          mv ${{ matrix.bin_name }} ${{ matrix.asset_name }}
 
-      - name: Upload Artifact (For manual runs)
-        uses: actions/upload-artifact@v4
-        with:
-          name: ${{ matrix.asset_name }}
-          path: target/${{ matrix.target }}/release/${{ matrix.asset_name }}
-
-      - name: Upload Release Asset (For tag pushes)
+      - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         if: startsWith(github.ref, 'refs/tags/')
         with:
