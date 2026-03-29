@@ -1,6 +1,6 @@
 [package]
 name = "tcping-rust"
-version = "0.1.4"      
+version = "0.1.5"      
 edition = "2021"
 description = "A lightweight, fast, and cross-platform TCP ping tool."
 license = "MIT"           
