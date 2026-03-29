@@ -18,7 +18,7 @@ A lightweight, fast, and cross-platform TCP ping tool written in Rust. It measur
 
 ### Method 1: Download Pre-compiled Binaries (Recommended)
 
-Go to the [Releases](../../releases) page and download the executable file that matches your operating system and architecture.
+Go to the [Releases](https://github.com/antstars/tcping-rust/releases) page and download the executable file that matches your operating system and architecture.
 
 * Linux: `tcping-linux-amd64` / `tcping-linux-arm64`
 * Windows: `tcping-windows-amd64.exe` / `tcping-windows-arm64.exe`
@@ -29,7 +29,7 @@ Go to the [Releases](../../releases) page and download the executable file that 
 If you have the Rust toolchain installed, you can easily build it yourself:
 
 ```bash
-git clone [https://github.com/YOUR_USERNAME/tcping-rust.git](https://github.com/YOUR_USERNAME/tcping-rust.git)
+git clone [https://github.com/antstars/tcping-rust.git](https://github.com/antstars/tcping-rust.git)
 cd tcping-rust
 cargo build --release
 ```
@@ -92,7 +92,7 @@ Use `tcping --help` to see all available options.
 
 ### 方式一：下载预编译版本（推荐）
 
-前往 [Releases](https://www.google.com/search?q=../../releases&authuser=2) 页面，下载与你的操作系统和架构相匹配的可执行文件即可开箱即用。
+前往 [Releases](https://github.com/antstars/tcping-rust/releases) 页面，下载与你的操作系统和架构相匹配的可执行文件即可开箱即用。
 
 ### 方式二：源码编译
 
@@ -101,7 +101,7 @@ Use `tcping --help` to see all available options.
 **Bash**
 
 ```
-git clone [https://github.com/你的用户名/tcping-rust.git](https://github.com/你的用户名/tcping-rust.git)
+git clone [https://github.com/antstars/tcping-rust.git](https://github.com/antstars/tcping-rust.git)
 cd tcping-rust
 cargo build --release
 ```
