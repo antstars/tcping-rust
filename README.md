@@ -1,5 +1,7 @@
 # tcping-rust
 
+[![Crates.io](https://img.shields.io/crates/v/tcping-rust.svg)](https://crates.io/crates/tcping-rust)
+
 [🇨🇳 简体中文](#简体中文) | [🇬🇧 English](#english)
 
 A lightweight, fast, and cross-platform TCP ping tool written in Rust. It measures network latency by establishing TCP connections, making it an excellent alternative to traditional ICMP ping, especially when ICMP is blocked by firewalls.
