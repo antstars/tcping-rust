@@ -1,6 +1,8 @@
 # tcping-rust
 
-[![Crates.io](https://img.shields.io/crates/v/tcping-rust.svg)](https://crates.io/crates/tcping-rust)
+[![Crates.io Version](https://img.shields.io/crates/v/tcping-rust.svg)](https://crates.io/crates/tcping-rust)
+[![Crates.io Downloads](https://img.shields.io/crates/d/tcping-rust.svg)](https://crates.io/crates/tcping-rust)
+[![Build Status](https://github.com/antstars/tcping-rust/actions/workflows/release.yml/badge.svg)](https://github.com/antstars/tcping-rust/actions/workflows/release.yml)
 
 [🇨🇳 简体中文](#简体中文) | [🇬🇧 English](#english)
 
